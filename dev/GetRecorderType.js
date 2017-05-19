@@ -46,15 +46,29 @@ function GetRecorderType(mediaStream, config) {
         recorder = CanvasRecorder;
     }
 
-    // todo: enable below block when MediaRecorder in Chrome gets out of flags; and it also supports audio recording.
-    if (isMediaRecorderCompatible() && isChrome && recorder !== CanvasRecorder && recorder !== GifRecorder && typeof MediaRecorder !== 'undefined' && 'requestData' in MediaRecorder.prototype) {
-        if (mediaStream.getVideoTracks().length) {
-            recorder = MediaStreamRecorder;
+    if (isMediaRecorderCompatible() && recorder !== CanvasRecorder && recorder !== GifRecorder && typeof MediaRecorder !== 'undefined' && 'requestData' in MediaRecorder.prototype) {
+        if ((mediaStream.getVideoTracks && mediaStream.getVideoTracks().length) || (mediaStream.getAudioTracks && mediaStream.getAudioTracks().length)) {
+            // audio-only recording
+            if (config.type === 'audio') {
+                if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported('audio/webm')) {
+                    recorder = MediaStreamRecorder;
+                }
+                // else recorder = StereoAudioRecorder;
+            } else {
+                // video or screen tracks
+                if (typeof MediaRecorder.isTypeSupported === 'function' && MediaRecorder.isTypeSupported('video/webm')) {
+                    recorder = MediaStreamRecorder;
+                }
+            }
         }
     }
 
     if (config.recorderType) {
         recorder = config.recorderType;
+    }
+
+    if (mediaStream instanceof Array && mediaStream.length) {
+        recorder = MultiStreamRecorder;
     }
 
     if (!config.disableLogs && !!recorder && !!recorder.name) {

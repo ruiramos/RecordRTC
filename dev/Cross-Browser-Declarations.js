@@ -9,11 +9,26 @@ if (typeof requestAnimationFrame === 'undefined') {
     if (typeof webkitRequestAnimationFrame !== 'undefined') {
         /*global requestAnimationFrame:true */
         requestAnimationFrame = webkitRequestAnimationFrame;
-    }
-
-    if (typeof mozRequestAnimationFrame !== 'undefined') {
+    } else if (typeof mozRequestAnimationFrame !== 'undefined') {
         /*global requestAnimationFrame:true */
         requestAnimationFrame = mozRequestAnimationFrame;
+    } else if (typeof msRequestAnimationFrame !== 'undefined') {
+        /*global requestAnimationFrame:true */
+        requestAnimationFrame = msRequestAnimationFrame;
+    } else if (typeof requestAnimationFrame === 'undefined') {
+        // via: https://gist.github.com/paulirish/1579671
+        var lastTime = 0;
+
+        /*global requestAnimationFrame:true */
+        requestAnimationFrame = function(callback, element) {
+            var currTime = new Date().getTime();
+            var timeToCall = Math.max(0, 16 - (currTime - lastTime));
+            var id = setTimeout(function() {
+                callback(currTime + timeToCall);
+            }, timeToCall);
+            lastTime = currTime + timeToCall;
+            return id;
+        };
     }
 }
 
@@ -23,11 +38,17 @@ if (typeof cancelAnimationFrame === 'undefined') {
     if (typeof webkitCancelAnimationFrame !== 'undefined') {
         /*global cancelAnimationFrame:true */
         cancelAnimationFrame = webkitCancelAnimationFrame;
-    }
-
-    if (typeof mozCancelAnimationFrame !== 'undefined') {
+    } else if (typeof mozCancelAnimationFrame !== 'undefined') {
         /*global cancelAnimationFrame:true */
         cancelAnimationFrame = mozCancelAnimationFrame;
+    } else if (typeof msCancelAnimationFrame !== 'undefined') {
+        /*global cancelAnimationFrame:true */
+        cancelAnimationFrame = msCancelAnimationFrame;
+    } else if (typeof cancelAnimationFrame === 'undefined') {
+        /*global cancelAnimationFrame:true */
+        cancelAnimationFrame = function(id) {
+            clearTimeout(id);
+        };
     }
 }
 
@@ -54,7 +75,7 @@ if (typeof URL === 'undefined' && typeof webkitURL !== 'undefined') {
     URL = webkitURL;
 }
 
-if (typeof navigator !== 'undefined') {
+if (typeof navigator !== 'undefined' && typeof navigator.getUserMedia === 'undefined') { // maybe window.navigator?
     if (typeof navigator.webkitGetUserMedia !== 'undefined') {
         navigator.getUserMedia = navigator.webkitGetUserMedia;
     }
@@ -62,10 +83,6 @@ if (typeof navigator !== 'undefined') {
     if (typeof navigator.mozGetUserMedia !== 'undefined') {
         navigator.getUserMedia = navigator.mozGetUserMedia;
     }
-} else {
-    // if you're using NPM or solutions where "navigator" is NOT available,
-    // just define it globally before loading RecordRTC.js script.
-    throw 'Please make sure to define a global variable named as "navigator"';
 }
 
 var isEdge = navigator.userAgent.indexOf('Edge') !== -1 && (!!navigator.msSaveBlob || !!navigator.msSaveOrOpenBlob);
@@ -79,46 +96,56 @@ if (typeof MediaStream === 'undefined' && typeof webkitMediaStream !== 'undefine
 }
 
 /*global MediaStream:true */
-if (typeof MediaStream !== 'undefined' && !('stop' in MediaStream.prototype)) {
+if (typeof MediaStream !== 'undefined') {
+    if (!('getVideoTracks' in MediaStream.prototype)) {
+        MediaStream.prototype.getVideoTracks = function() {
+            if (!this.getTracks) {
+                return [];
+            }
+
+            var tracks = [];
+            this.getTracks.forEach(function(track) {
+                if (track.kind.toString().indexOf('video') !== -1) {
+                    tracks.push(track);
+                }
+            });
+            return tracks;
+        };
+
+        MediaStream.prototype.getAudioTracks = function() {
+            if (!this.getTracks) {
+                return [];
+            }
+
+            var tracks = [];
+            this.getTracks.forEach(function(track) {
+                if (track.kind.toString().indexOf('audio') !== -1) {
+                    tracks.push(track);
+                }
+            });
+            return tracks;
+        };
+    }
+
+    // override "stop" method for all browsers
+    MediaStream.prototype.__stop = MediaStream.prototype.stop;
     MediaStream.prototype.stop = function() {
-        if (!this.getAudioTracks && !!this.getTracks) {
-            this.getAudioTracks = function() {
-                var array = [];
-                this.getTracks.forEach(function(track) {
-                    if (track.kind.toString().indexOf('audio') !== -1) {
-                        array.push(track);
-                    }
-                });
-                return array;
-            };
-        }
-
-        if (!this.getVideoTracks && !!this.getTracks) {
-            this.getVideoTracks = function() {
-                var array = [];
-                this.getTracks.forEach(function(track) {
-                    if (track.kind.toString().indexOf('video') !== -1) {
-                        array.push(track);
-                    }
-                });
-                return array;
-            };
-        }
-
         this.getAudioTracks().forEach(function(track) {
-            track.stop();
+            if (!!track.stop) {
+                track.stop();
+            }
         });
 
         this.getVideoTracks().forEach(function(track) {
-            track.stop();
+            if (!!track.stop) {
+                track.stop();
+            }
         });
-    };
-}
 
-if (typeof location !== 'undefined') {
-    if (location.href.indexOf('file:') === 0) {
-        console.error('Please load this HTML file on HTTP or HTTPS.');
-    }
+        if (typeof this.__stop === 'function') {
+            this.__stop();
+        }
+    };
 }
 
 // below function via: http://goo.gl/B3ae8c
@@ -152,10 +179,12 @@ function invokeSaveAsDialog(file, fileName) {
     }
 
     if (!file.type) {
-        file.type = 'video/webm';
+        try {
+            file.type = 'video/webm';
+        } catch (e) {}
     }
 
-    var fileExtension = file.type.split('/')[1];
+    var fileExtension = (file.type || 'video/webm').split('/')[1];
 
     if (fileName && fileName.indexOf('.') !== -1) {
         var splitted = fileName.split('.');

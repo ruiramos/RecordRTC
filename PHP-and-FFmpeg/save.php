@@ -1,7 +1,7 @@
 <?php
     // Muaz Khan         - www.MuazKhan.com
     // MIT License       - www.WebRTC-Experiment.com/licence
-    // Documentation     - github.com/muaz-khan/WebRTC-Experiment/tree/master/RecordRTC
+    // Documentation     - github.com/muaz-khan/RecordRTC
     
     // make sure that you're using newest ffmpeg version!
 
@@ -32,7 +32,7 @@
     foreach($OSList as $CurrOS=>$Match)
     {
         // Find a match
-        if (eregi($Match, $_SERVER['HTTP_USER_AGENT']))
+        if (preg_match("/".$Match."/i", $_SERVER['HTTP_USER_AGENT']))
         {
             // We found the correct match
             break;

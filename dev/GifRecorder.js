@@ -58,11 +58,11 @@ function GifRecorder(mediaStream, config) {
                 };
             }
 
-            canvas.width = config.canvas.width;
-            canvas.height = config.canvas.height;
+            canvas.width = config.canvas.width || 320;
+            canvas.height = config.canvas.height || 240;
 
-            video.width = config.video.width;
-            video.height = config.video.height;
+            video.width = config.video.width || 320;
+            video.height = config.video.height || 240;
         }
 
         // external library to record as GIF images
@@ -120,7 +120,9 @@ function GifRecorder(mediaStream, config) {
                 video.play();
             }
 
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            if (!isHTMLObject) {
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            }
 
             if (config.onGifPreview) {
                 config.onGifPreview(canvas.toDataURL('image/png'));
@@ -217,8 +219,10 @@ function GifRecorder(mediaStream, config) {
     if (isHTMLObject) {
         if (mediaStream instanceof CanvasRenderingContext2D) {
             context = mediaStream;
+            canvas = context.canvas;
         } else if (mediaStream instanceof HTMLCanvasElement) {
             context = mediaStream.getContext('2d');
+            canvas = mediaStream;
         }
     }
 
@@ -240,4 +244,8 @@ function GifRecorder(mediaStream, config) {
     var startTime, endTime, lastFrameTime;
 
     var gifEncoder;
+}
+
+if (typeof RecordRTC !== 'undefined') {
+    RecordRTC.GifRecorder = GifRecorder;
 }
